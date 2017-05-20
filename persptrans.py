@@ -3,37 +3,70 @@ from PIL import Image, ImageTk
 import constants, utils
 import numpy as np
 import cv2
+import glob
 
 def warp_image(img, src_pts, dst_pts):
-    M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    M = cv2.getPerspectiveTransform(np.float32(src_pts), np.float32(dst_pts))
     return cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR)
 
+def warp_folder(folder_name, src_pts, dst_pts, output_folder=None):
+    """warp images from [folder_name], optionally save to [output_folder]"""
+    if output_folder:
+        utils.make_dir(output_folder)
+    image_files = glob.glob('{}/*.jpg'.format(folder_name)) + glob.glob('{}/*.png'.format(folder_name))
+    for i in range(len(image_files)):
+        utils.print_progress_bar(i, len(image_files), prefix = 'warp {}:'.format(folder_name))
+        img = cv2.imread(image_files[i])
+        img = warp_image(img, src_pts, dst_pts)
+        if output_folder:
+            out_name = '{}/{}'.format(output_folder, utils.basename(image_files[i]))
+            cv2.imwrite(out_name, img)
+        else:
+            cv2.imshow('img', img)
+            cv2.waitKey(500)
+    utils.print_progress_bar(len(image_files), len(image_files), prefix = 'warp {}:'.format(folder_name))
+
 class AdjustTransform:
-    def __init__(self, images):
+    def __init__(self, images, src_pts=None, dst_pts=None):
         self.master = Tk()
         self.images = images
+        self.init_values(src_pts, dst_pts)
         self.img_index = 0
-        self.src_top_width = 62
-        self.src_top_pos = 445
-        self.src_bottom_width = 545
-        self.src_bottom_pos = 651
+        self.accepted = False       # dismissed with cancel or ok?
         self.show()
 
+    def init_values(self, src_pts, dst_pts):
+        if (src_pts is None) or (dst_pts is None):
+            self.src_top_width = 62
+            self.src_top_pos = 445
+            self.src_bottom_width = 545
+            self.src_bottom_pos = 651
+            self.src_pts = self.get_src_points()
+            self.dst_pts = self.get_dst_points()
+        else:
+            w=constants.image_width
+            h=constants.image_height
+            w2=int(w/2)
+            self.src_top_width = src_pts[1][0]-w2
+            self.src_top_pos = src_pts[0][1]
+            self.src_bottom_width = src_pts[2][0]-w2
+            self.src_bottom_pos = src_pts[2][1]
+
     def redraw(self):
-        img1 = images[self.img_index].copy()
+        img1 = self.images[self.img_index].copy()
         w=img1.shape[1]
         h=img1.shape[0]
 
-        src_pts = self.get_src_points()
-        dst_pts = self.get_dst_points()
+        self.src_pts = self.get_src_points()
+        self.dst_pts = self.get_dst_points()
 
-        utils.img_draw_poly(img1, src_pts[None,:], color=(0,0,255), thickness=3)
+        utils.img_draw_poly(img1, self.src_pts[None,:], color=(0,0,255), thickness=3)
 
         img1 = Image.fromarray(img1[:,:,[2,1,0]]).resize((int(w/2), int(h/2)))
         self.imgtk1 = ImageTk.PhotoImage(image=img1)
         self.canvas1.create_image(0,0, image=self.imgtk1, anchor=NW)
 
-        img2 = warp_image(images[self.img_index], np.float32(src_pts), np.float32(dst_pts))
+        img2 = warp_image(self.images[self.img_index], self.src_pts, self.dst_pts)
         utils.img_draw_grid(img2, color=(128,255,128))
         img2 = Image.fromarray(img2[:,:,[2,1,0]]).resize((int(w/2), int(h/2)))
         self.imgtk2 = ImageTk.PhotoImage(image=img2)
@@ -65,6 +98,10 @@ class AdjustTransform:
             [w2+self.src_bottom_width, h],
             [w2-self.src_bottom_width, h],], dtype=np.int32)
 
+    def accept(self):
+        self.accepted = True
+        self.master.destroy()
+
     def show(self):
         w=constants.image_width
         h=constants.image_height
@@ -89,9 +126,16 @@ class AdjustTransform:
         self.s_src_bottom_width.set(self.src_bottom_width)
         self.s_src_bottom_pos.set(self.src_bottom_pos)
 
-        Button(self.master, text="close", command=self.master.destroy).grid(row=6,sticky=W)
+        Button(self.master, text="cancel", command=self.master.destroy).grid(row=6,sticky=W)
+        Button(self.master, text="ok", command=self.accept).grid(row=7,sticky=W)
         self.redraw()
         mainloop()
+
+def adjust_perspective(image_folder, src_pts=None, dst_pts=None):
+    images = utils.read_folder_images(image_folder)
+    adjust_transform = AdjustTransform(images, src_pts, dst_pts)
+    return (adjust_transform.accepted, adjust_transform.src_pts, adjust_transform.dst_pts)
+
 
 if __name__=='__main__':
     images = utils.read_folder_images(constants.test_images_folder)

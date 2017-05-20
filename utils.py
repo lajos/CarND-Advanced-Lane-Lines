@@ -16,6 +16,8 @@ def basename(path):
     return os.path.basename(path)
 
 def warning(message):
+    clear_line = ' '*80
+    print('\r%s' % (clear_line), end = '\r')
     print('WARNING: {}'.format(message))
 
 def save_globals(globals):
@@ -78,5 +80,10 @@ def img_draw_grid(img, n_width=16, n_height=9, color=(255,255,255)):
         y = int(i*y_step)
         img_draw_line(img,(0,y),(w,y),color,thickness=2)
 
-
-
+def print_progress_bar (iteration, total, prefix = 'progress:', suffix = ' ', decimals = 1, length = 30, fill = '='):
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '.' * (length - filledLength)
+    print('\r%s [%s] %s%% %s' % (prefix, bar, percent, suffix), end = '\r')
+    if iteration == total:
+        print()

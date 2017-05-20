@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import utils
 
-def calibrate_images(image_names, nx=9, ny=6):
+def calibrate_images(image_files, nx=9, ny=6):
     """ find checkerboard points in [images_names]
     [nx] and [ny] are the number of points in x,y directions
     returns (mtx,dist)
@@ -18,8 +18,9 @@ def calibrate_images(image_names, nx=9, ny=6):
 
     img_shape = ()
 
-    for i in image_names:
-        img = cv2.imread(i)
+    for i in range(len(image_files)):
+        utils.print_progress_bar(i, len(image_files), prefix = 'calibrate camera:')
+        img = cv2.imread(image_files[i])
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         img_shape = gray.shape[:2]
         ret, corners = cv2.findChessboardCorners(gray, (nx,ny), None)
@@ -32,6 +33,8 @@ def calibrate_images(image_names, nx=9, ny=6):
             # cv2.waitKey(500)
         else:
             utils.warning('checkerboard corners not found: {}'.format(i))
+
+    utils.print_progress_bar(len(image_files), len(image_files), prefix = 'calibrate camera:')
 
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, gray.shape[::-1],None,None)
 
@@ -53,16 +56,20 @@ def undistort_image(img, mtx, dist):
     """
     return cv2.undistort(img, mtx, dist, None, mtx)
 
-def test_folder(folder_name, mtx, dist, output_folder=None):
-    """ show undistorted images from [folder], optionally save to [output_folder]"""
+def undistort_folder(folder_name, mtx, dist, output_folder=None):
+    """undistort images from [folder_name], optionally save to [output_folder]"""
     if output_folder:
         utils.make_dir(output_folder)
-    for i in glob.glob('{}/*.jpg'.format(folder_name)):
-        img = cv2.imread(i)
+    image_files = glob.glob('{}/*.jpg'.format(folder_name)) + glob.glob('{}/*.png'.format(folder_name))
+    for i in range(len(image_files)):
+        utils.print_progress_bar(i, len(image_files), prefix = 'undistort {}:'.format(folder_name))
+        img = cv2.imread(image_files[i])
         img = undistort_image(img, mtx, dist)
         if output_folder:
-            out_name = '{}/{}'.format(output_folder, utils.basename(i))
+            out_name = '{}/{}'.format(output_folder, utils.basename(image_files[i]))
             cv2.imwrite(out_name, img)
         else:
             cv2.imshow('img', img)
             cv2.waitKey(500)
+    utils.print_progress_bar(len(image_files), len(image_files), prefix = 'undistort {}:'.format(folder_name))
+
