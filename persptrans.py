@@ -41,6 +41,7 @@ class AdjustTransform:
             self.src_top_pos = 445
             self.src_bottom_width = 545
             self.src_bottom_pos = 651
+            self.dst_width = 500
             self.src_pts = self.get_src_points()
             self.dst_pts = self.get_dst_points()
         else:
@@ -51,6 +52,7 @@ class AdjustTransform:
             self.src_top_pos = src_pts[0][1]
             self.src_bottom_width = src_pts[2][0]-w2
             self.src_bottom_pos = src_pts[2][1]
+            self.dst_width = dst_pts[1][0]-w2
 
     def redraw(self):
         img1 = self.images[self.img_index].copy()
@@ -78,6 +80,7 @@ class AdjustTransform:
         self.src_top_pos = self.s_src_top_pos.get()
         self.src_bottom_width = self.s_src_bottom_width.get()
         self.src_bottom_pos = self.s_src_bottom_pos.get()
+        self.dst_width = self.s_dst_width.get()
         self.redraw()
 
     def get_src_points(self):
@@ -93,10 +96,10 @@ class AdjustTransform:
         w=constants.image_width
         h=constants.image_height
         w2=int(w/2)
-        return np.array([[w2-self.src_bottom_width, 0],
-            [w2+self.src_bottom_width, 0],
-            [w2+self.src_bottom_width, h],
-            [w2-self.src_bottom_width, h],], dtype=np.int32)
+        return np.array([[w2-self.dst_width, 0],
+            [w2+self.dst_width, 0],
+            [w2+self.dst_width, h],
+            [w2-self.dst_width, h],], dtype=np.int32)
 
     def accept(self):
         self.accepted = True
@@ -119,15 +122,18 @@ class AdjustTransform:
         self.s_src_bottom_width.grid(row=4, column=0,sticky=W)
         self.s_src_bottom_pos = Scale(self.master, label='pottom y position', from_=300, to=800, length=500, command=self.update, orient=HORIZONTAL)
         self.s_src_bottom_pos.grid(row=5, column=0,sticky=W)
+        self.s_dst_width = Scale(self.master, label='dst width', from_=300, to=800, length=500, command=self.update, orient=HORIZONTAL)
+        self.s_dst_width.grid(row=6, column=0,sticky=W)
 
         self.s_image_index.set(self.img_index)
         self.s_src_top_width.set(self.src_top_width)
         self.s_src_top_pos.set(self.src_top_pos)
         self.s_src_bottom_width.set(self.src_bottom_width)
         self.s_src_bottom_pos.set(self.src_bottom_pos)
+        self.s_dst_width.set(self.dst_width)
 
-        Button(self.master, text="cancel", command=self.master.destroy).grid(row=6,sticky=W)
-        Button(self.master, text="ok", command=self.accept).grid(row=7,sticky=W)
+        Button(self.master, text="cancel", command=self.master.destroy).grid(row=100, column=0,sticky=W)
+        Button(self.master, text="ok", command=self.accept).grid(row=100, column=1, sticky=W)
         self.redraw()
         mainloop()
 
