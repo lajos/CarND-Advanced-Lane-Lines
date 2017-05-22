@@ -28,7 +28,7 @@ def sobel_thresh_channels(output, channels, use_channels, thresholds, sobel_kern
             output = output | timg
     return output
 
-def thresh(img, use_rgb=None, rgb_thresh=None, use_hls=None, hls_thresh=None, use_luv=None, luv_thresh=None, use_sobel_hls=None, sobel_hls_thresh=None, sobel_hls_kernel=None):
+def thresh_image(img, use_rgb=None, rgb_thresh=None, use_hls=None, hls_thresh=None, use_luv=None, luv_thresh=None, use_sobel_hls=None, sobel_hls_thresh=None, sobel_hls_kernel=None):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     output = np.zeros_like(gray)
 
@@ -60,11 +60,11 @@ def thresh_folder(folder_name, use_rgb=None, rgb_thresh=None, use_hls=None, hls_
     for i in range(len(image_files)):
         utils.print_progress_bar(i, len(image_files), prefix = 'thresh {}:'.format(folder_name))
         img = cv2.imread(image_files[i])
-        img = thresh(img, use_rgb=use_rgb, rgb_thresh=rgb_thresh,
-                          use_hls=use_hls, hls_thresh=hls_thresh,
-                          use_luv=use_luv, luv_thresh=luv_thresh,
-                          use_sobel_hls=use_sobel_hls, sobel_hls_thresh=sobel_hls_thresh,
-                          sobel_hls_kernel=sobel_hls_kernel)
+        img = thresh_image(img, use_rgb=use_rgb, rgb_thresh=rgb_thresh,
+                           use_hls=use_hls, hls_thresh=hls_thresh,
+                           use_luv=use_luv, luv_thresh=luv_thresh,
+                           use_sobel_hls=use_sobel_hls, sobel_hls_thresh=sobel_hls_thresh,
+                           sobel_hls_kernel=sobel_hls_kernel)
         img *= 255
         if output_folder:
             out_name = '{}/{}'.format(output_folder, utils.basename(image_files[i]))
@@ -124,7 +124,7 @@ class AdjustThresh:
         self.canvas1.create_image(0,0, image=self.imgtk1, anchor=NW)
 
         img2 = self.images[self.img_index].copy()
-        img2 = thresh(img2, use_rgb=self.use_rgb, rgb_thresh=self.rgb_thresh,
+        img2 = thresh_image(img2, use_rgb=self.use_rgb, rgb_thresh=self.rgb_thresh,
                             use_hls=self.use_hls, hls_thresh=self.hls_thresh,
                             use_luv=self.use_luv, luv_thresh=self.luv_thresh,
                             use_sobel_hls=self.use_sobel_hls, sobel_hls_thresh=self.sobel_hls_thresh,

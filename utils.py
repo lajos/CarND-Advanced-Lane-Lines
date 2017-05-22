@@ -56,9 +56,10 @@ def plt_image_file(file_name, bgr=False):
     img = cv2.imread(file_name)
     plt_image(img, bgr)
 
-def read_folder_images(folder_name, extension='jpg'):
+def read_folder_images(folder_name):
     images = []
-    for i in glob.glob('{}/*.{}'.format(folder_name, extension)):
+    image_names = glob.glob('{}/*.jpg'.format(folder_name)) + glob.glob('{}/*.png'.format(folder_name))
+    for i in image_names:
         images.append(cv2.imread(i))
     return images
 
@@ -67,6 +68,12 @@ def img_draw_poly(img, pts, color=(255,255,255), thickness=2):
 
 def img_draw_line(img, pt1, pt2, color=(255,255,255), thickness=2):
     cv2.line(img, pt1, pt2, color, thickness)
+
+def img_draw_rectangle(img, pt1, pt2, color=(255,255,255), thickness=2):
+    cv2.rectangle(img, pt1, pt2, color, thickness)
+
+def img_draw_dot(img, center, radius=4, color=(255,255,255)):
+    cv2.circle(img, center, radius, color, thickness=-1)
 
 def img_draw_grid(img, n_width=16, n_height=9, color=(255,255,255)):
     w=img.shape[1]
