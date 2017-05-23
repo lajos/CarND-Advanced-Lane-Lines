@@ -3,6 +3,9 @@ import cv2
 import constants, utils
 from scipy import ndimage
 
+avg_centroids = None
+avg_curve_rad = None
+avg_center_offset_m = None
 
 def draw_centroids(img, centroids, window_size, l_poly, r_poly):
     img = img.copy()
@@ -29,27 +32,24 @@ def draw_centroids(img, centroids, window_size, l_poly, r_poly):
         utils.img_draw_dot(img, (r_x, y), color=(0,255,255), radius=2)
     return img
 
+
 def draw_overlay(img, centroids, window_size, l_poly, r_poly):
     pts = []
     img_h = img.shape[0]
     img_overlay = np.zeros_like(img)
     for y in range(0,img_h,10):
-#        l_x = int(l_poly[0]*y**2+l_poly[1]*y+l_poly[2])
         r_x = int(r_poly[0]*y**2+r_poly[1]*y+r_poly[2])
- #       utils.img_draw_dot(img, (l_x, y), color=(0,255,255), radius=2)
-  #      utils.img_draw_dot(img, (r_x, y), color=(0,255,255), radius=2)
         pts.append([r_x, y])
     for y in reversed(range(0,img_h,10)):
        l_x = int(l_poly[0]*y**2+l_poly[1]*y+l_poly[2])
        pts.append([l_x, y])
-
-
-
-    cv2.fillPoly(img_overlay, np.array(pts, dtype=np.int32)[None,:], color=(0,100,0))
-
+    cv2.fillPoly(img_overlay, np.array(pts, dtype=np.int32)[None,:], color=(0,200,0))
+    for y in range(img_h):
+        l_x = int(l_poly[0]*y**2+l_poly[1]*y+l_poly[2])
+        r_x = int(r_poly[0]*y**2+r_poly[1]*y+r_poly[2])
+        utils.img_draw_dot(img_overlay, (l_x, y), color=(255,0,0), radius=5)
+        utils.img_draw_dot(img_overlay, (r_x, y), color=(0,0,255), radius=5)
     return img_overlay
-
-
 
 
 def find_window_centroids(img, window_size , margin, strength_min=0.5, hint_centroids=None):
@@ -117,7 +117,6 @@ def find_window_centroids(img, window_size , margin, strength_min=0.5, hint_cent
 
     return window_centroids
 
-avg_centroids = None
 
 def lerp(a, b, ratio):
     return a*(1.0-ratio) + b * ratio
@@ -153,11 +152,13 @@ def lerp_centroids(centroids, strength_min, lerp_ratio = 0.2):
     return avg_centroids
 
 def reset_state():
-    global avg_centroids
+    global avg_centroids, avg_curve_rad, avg_center_offset_m
     avg_centroids = None
+    avg_curve_rad = None
+    avg_center_offset_m = None
 
 def find_lanes(img):
-    global avg_centroids
+    global avg_centroids, avg_center_offset_m, avg_curve_rad
     strength_min = 1
 
     # window settings
@@ -193,7 +194,41 @@ def find_lanes(img):
 
     l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
     r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
-    #r_poly = np.polyfit(pts_y, r_pts_x, 2)
+
+    # calculate distance from center
+    x_center = 1280/2
+    y_pos = 720
+    lane_width_m = 3.7
+    l_x_pos = l_poly[0]**2*y_pos + l_poly[1]*y_pos + l_poly[2]
+    r_x_pos = r_poly[0]**2*y_pos + r_poly[1]*y_pos + r_poly[2]
+    lane_width = r_x_pos-l_x_pos
+    center_offset = ((x_center-l_x_pos)-lane_width/2)/2
+    center_offset_m = lane_width_m / lane_width * center_offset
+    #print (l_x_pos, r_x_pos, lane_width, center_offset_m)
+
+    if avg_center_offset_m is None:
+        avg_center_offset_m = center_offset_m
+    else:
+        avg_center_offset_m = lerp(avg_center_offset_m, center_offset_m, 0.2)
+
+    # define conversions in x and y from pixels space to meters
+    ym_per_pix = 30/720    # meters per pixel in y dimension
+    xm_per_pix = 3.7/675   # meters per pixel in x dimension
+    y_eval = 720
+
+    l_w_poly = np.polyfit(lc[:,1]*ym_per_pix, lc[:,0]*xm_per_pix, 2)
+    r_w_poly = np.polyfit(rc[:,1]*ym_per_pix, rc[:,0]*xm_per_pix, 2)
+    l_rad = ((1 + (2*l_w_poly[0]*y_eval*ym_per_pix + l_w_poly[1])**2)**1.5) / np.absolute(2*l_w_poly[0])
+    r_rad = ((1 + (2*r_w_poly[0]*y_eval*ym_per_pix + r_w_poly[1])**2)**1.5) / np.absolute(2*r_w_poly[0])
+
+    curve_rad = (l_rad+r_rad) / 2
+
+    if avg_curve_rad is None:
+        avg_curve_rad = curve_rad
+    else:
+        avg_curve_rad = lerp(avg_curve_rad, curve_rad, 0.2)
+
+    #print(l_rad, r_rad)
 
     # print('left poly:',l_poly)
     # print('right poly:',r_poly)
@@ -204,10 +239,10 @@ def find_lanes(img):
 
     img_overlay =draw_overlay(img3, avg_centroids, window_size, l_poly, r_poly)
 
-    return (img_centroids, img_overlay, l_poly, r_poly)
+    return (img_centroids, img_overlay, l_poly, r_poly, avg_curve_rad, avg_center_offset_m)
 
 if __name__=='__main__':
     img = cv2.imread('{}/test5.jpg'.format(constants.persp_trans_test_folder))
-    img_centroids, img_overlay, l_poly, r_poly = find_lanes(img)
+    img_centroids, img_overlay, l_poly, r_poly, curve_rad, center_offset = find_lanes(img)
     cv2.imshow('centroids', img_overlay)
     cv2.waitKey(3000)

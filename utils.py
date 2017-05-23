@@ -1,4 +1,4 @@
-import os, pickle, glob
+import os, pickle, glob, csv
 import constants
 import cv2
 import matplotlib.pyplot as plt
@@ -94,3 +94,9 @@ def print_progress_bar (iteration, total, prefix = 'progress:', suffix = ' ', de
     print('\r%s [%s] %s%% %s' % (prefix, bar, percent, suffix), end = '\r')
     if iteration == total:
         print()
+
+def write_csv(csv_name, data):
+    with open(csv_name, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+        for d in data:
+            csv_writer.writerow(d)

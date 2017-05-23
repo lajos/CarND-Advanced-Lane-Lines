@@ -47,9 +47,11 @@ def adjust_thresh(force=False):
                              output_folder=constants.thresh_test_folder)
 
 current_video_frame = 0
+poly_log = []
 
 def process_image(img):
     global current_video_frame
+    global poly_log
     bgr = img[:,:,[2,1,0]]
     undistorted = camcalib.undistort_image(bgr, _['cal_mtx'], _['cal_dist'])
     threshed = thresh.thresh_image(undistorted,
@@ -59,12 +61,26 @@ def process_image(img):
                                    use_sobel_hls=_['thresh_use_sobel_hls'], sobel_hls_thresh=_['thresh_sobel_hls_thresh'],
                                    sobel_hls_kernel=_['thresh_sobel_hls_kernel'])
     warped = persptrans.warp_image(threshed, _['persp_src_pts'], _['persp_dst_pts'])
-    img_centroids, img_overlay, l_poly, r_poly = find_lanes.find_lanes(warped)
+    img_centroids, img_overlay, l_poly, r_poly, curve_rad, center_offset_m = find_lanes.find_lanes(warped)
+
+    poly_log.append(l_poly.tolist() + r_poly.tolist())
 
     img_overlay = img_overlay[:,:,[2,1,0]]
     unwarped_overlay = persptrans.warp_image(img_overlay, _['persp_dst_pts'], _['persp_src_pts'])
 
-    output = cv2.add(img, unwarped_overlay)
+    overlay_mask = unwarped_overlay[:,:,0]+unwarped_overlay[:,:,1]+unwarped_overlay[:,:,2]
+    overlay_mask = np.minimum(np.dstack((overlay_mask, overlay_mask, overlay_mask)), np.zeros_like(img)+100)
+    img_reduced = np.uint8(np.maximum(np.int16(img)-overlay_mask, np.zeros_like(img)))
+
+    output = cv2.add(img_reduced, unwarped_overlay)
+
+    cv2.putText(output,'Curve radius: {:.0f}m'.format(curve_rad), (50,50), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255,255,255))
+    offset_label = ''
+    if (center_offset_m<0):
+        offset_label = 'Offset from center: {:.2f}m left'.format(abs(center_offset_m))
+    else:
+        offset_label = 'Offset from center: {:.2f}m right'.format(abs(center_offset_m))
+    cv2.putText(output, offset_label, (50,80), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255,255,255))
 
     cv2.imwrite('{}/{:04d}.jpg'.format(constants.video_test_folder, current_video_frame), img_centroids)
     current_video_frame += 1
@@ -72,12 +88,16 @@ def process_image(img):
 
 def process_video(input_video, output_video):
     from moviepy.editor import VideoFileClip
-    global current_video_frame
+    global current_video_frame, poly_log
     current_video_frame = 0
     utils.make_dir(constants.video_test_folder)
+    find_lanes.reset_state()
     clip = VideoFileClip(input_video)
     processed_clip = clip.fl_image(process_image)
     processed_clip.write_videofile(output_video, audio=False)
+    #print(poly_log)
+    utils.write_csv('poly_log.csv', poly_log)
+
 
 def main():
     global _
