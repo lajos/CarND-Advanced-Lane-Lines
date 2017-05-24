@@ -183,6 +183,42 @@ def lerp_centroids(centroids, strength_min, lerp_ratio = 0.2):
     return avg_centroids
 
 
+def poly_fit_random_weight(c, last_poly):
+    best_poly = np.polyfit(c[:,1], c[:,0], 2)
+    # best_diff_a = abs(last_poly[0] - best_l_poly[0])
+    # best_diff_b = abs(last_poly[1] - best_l_poly[1])
+    # best_diff_c = abs(last_poly[2] - best_l_poly[2])
+
+    best_diff_0 = abs(np.polyval(last_poly,0) - np.polyval(best_poly,0))
+    best_diff_720 = abs(np.polyval(last_poly,720) - np.polyval(best_poly,720))
+
+    # print(best_diff_a)
+    for i in range(100):
+        # idx = np.random.randint(len(c), size=int(0.95*len(c)))
+        # cs = c[idx,:]
+        # l_poly = np.polyfit(cs[:,1], cs[:,0], 2)
+
+        w = np.random.random(c[:,0].size) * 5
+        l_poly = np.polyfit(c[:,1], c[:,0], 2, w=w)
+
+        diff_a = abs(last_poly[0] - l_poly[0])
+        diff_b = abs(last_poly[1] - l_poly[1])
+        diff_c = abs(last_poly[2] - l_poly[2])
+
+        diff_0 = abs(np.polyval(last_poly,0) - np.polyval(l_poly,0))
+        diff_720 = abs(np.polyval(last_poly,720) - np.polyval(l_poly,720))
+
+#        if diff_a<best_diff_a and diff_b<best_diff_b: # and diff_c<best_diff_c:
+        if diff_0<best_diff_0 and diff_720<best_diff_720:
+            print('better')
+            # best_diff_a = diff_a
+            # best_diff_b = diff_b
+            # best_diff_c = diff_c
+            best_diff_0 = diff_0
+            best_diff_720 = diff_720
+            best_poly = l_poly
+    return best_poly
+
 def find_lanes(img):
     global avg_centroids, avg_center_offset_m, avg_curve_rad, last_l_poly, last_r_poly
     strength_min = 1
@@ -212,7 +248,7 @@ def find_lanes(img):
     c = np.array(centroids)
 
     s_min = 4
-    s_max = 29
+    s_max = 25
     lc = c[np.ix_(c[:,3]>s_min, (0,2,3))]   # select l_x, l_y, l_strength, where l_strength > strength_min
     rc = c[np.ix_(c[:,4]>s_min, (1,2,4))]   # select r_x, r_y, r_strength, where r_strength > strength_min
     lc = lc[np.ix_(lc[:,2]<s_max, (0,1,2))]
@@ -225,11 +261,19 @@ def find_lanes(img):
 
     # only fit poly if we have enough points
     if len(lc)>17:
-        l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
+        # l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
+        if last_l_poly is None:
+            l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
+        else:
+            l_poly = poly_fit_random_weight(lc, last_l_poly)
     else:
         l_poly = last_l_poly
     if len(rc)>17:
-        r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
+        # r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
+        if last_r_poly is None:
+            r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
+        else:
+            r_poly = poly_fit_random_weight(rc, last_r_poly)
     else:
         r_poly = last_r_poly
 

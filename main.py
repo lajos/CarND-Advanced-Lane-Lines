@@ -108,7 +108,7 @@ def main():
     #print(_)
 
     force = False
-    force = True
+    # force = True
     calibrate_camera(force=force)
     adjust_thresh(force=force)
     adjust_perspective(force=force)
@@ -116,7 +116,7 @@ def main():
     #process_video(constants.video_project_part, '{}/{}'.format(constants.output_folder, constants.video_project_part))
     # process_video(constants.video_project, '{}/{}'.format(constants.output_folder, constants.video_project))
 
-    #process_video(constants.video_challenge, '{}/{}'.format(constants.output_folder, constants.video_challenge))
+    process_video(constants.video_challenge, '{}/{}'.format(constants.output_folder, constants.video_challenge))
     #process_video(constants.video_challenge_harder, '{}/{}'.format(constants.output_folder, constants.video_challenge_harder))
 
     #img = cv2.imread('{}/straight_lines2.jpg'.format(constants.thresh_test_folder))
