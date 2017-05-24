@@ -6,25 +6,49 @@ from scipy import ndimage
 avg_centroids = None
 avg_curve_rad = None
 avg_center_offset_m = None
+last_l_poly = None
+last_r_poly = None
 
-def draw_centroids(img, centroids, window_size, l_poly, r_poly):
+def reset_state():
+    global avg_centroids, avg_curve_rad, avg_center_offset_m, last_l_poly, last_r_poly
+    avg_centroids = None
+    avg_curve_rad = None
+    avg_center_offset_m = None
+    last_l_poly = None
+    last_r_poly = None
+
+def draw_centroids(img, centroids, window_size, l_poly, r_poly, strength_min):
     img = img.copy()
     # print(img.shape)
     w2 = int(window_size[0]/2)
     h = window_size[1]
     img_h = img.shape[0]
     nc = np.array(centroids)
-    l_strenth_max = np.max(nc[:,3])
-    r_strenth_max = np.max(nc[:,4])
+    l_strength_max = np.max(nc[:,3])
+    r_strength_max = np.max(nc[:,4])
     for c in centroids:
-        l_strength = c[3]/l_strenth_max
-        r_strength = c[4]/r_strenth_max
+        if c[3]<strength_min:
+            l_strength = 0
+        else:
+            l_strength = c[3]/l_strength_max
+        if c[4]<strength_min:
+            r_strength = 0
+        else:
+            r_strength = c[4]/r_strength_max
         c[0]=int(c[0])
         c[1]=int(c[1])
         utils.img_draw_rectangle(img, (c[0]-w2, c[2]), (c[0]+w2, c[2]-h), color=(int((l_strength/2+0.5)*255),0,0), thickness=1)
         utils.img_draw_rectangle(img, (c[1]-w2, c[2]), (c[1]+w2, c[2]-h), color=(int((r_strength/2+0.5)*255),0,0), thickness=1)
-        utils.img_draw_dot(img, (c[0], c[2]), color=(0,0,int((l_strength/2+0.5)*255)))
-        utils.img_draw_dot(img, (c[1], c[2]), color=(0,0,int((r_strength/2+0.5)*255)))
+        cv2.putText(img, '{:.1f}'.format(c[3]), (c[0]+w2*2, c[2]-h), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255,0,255))
+        cv2.putText(img, '{:.1f}'.format(c[4]), (c[1]+w2*2, c[2]-h), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255,0,255))
+        if l_strength==0:
+            utils.img_draw_dot(img, (c[0], c[2]), color=(255,0,0), radius=1)
+        else:
+            utils.img_draw_dot(img, (c[0], c[2]), color=(0,0,int((l_strength/2+0.5)*255)))
+        if r_strength==0:
+            utils.img_draw_dot(img, (c[1], c[2]), color=(255,0,0), radius=1)
+        else:
+            utils.img_draw_dot(img, (c[1], c[2]), color=(0,0,int((r_strength/2+0.5)*255)))
     for y in range(img_h):
         l_x = int(l_poly[0]*y**2+l_poly[1]*y+l_poly[2])
         r_x = int(r_poly[0]*y**2+r_poly[1]*y+r_poly[2])
@@ -112,8 +136,13 @@ def find_window_centroids(img, window_size , margin, strength_min=0.5, hint_cent
         # update hint only if we found enough data
         if l_strength > strength_min:
             l_center_hint = l_center
+        elif hint_centroids is not None and hint_centroids[level][3]>strength_min:
+            l_center_hint = hint_centroids[level][0]
+
         if r_strength > strength_min:
             r_center_hint = r_center
+        elif hint_centroids is not None and hint_centroids[level][4]>strength_min:
+            r_center_hint = hint_centroids[level][1]
 
     return window_centroids
 
@@ -138,7 +167,8 @@ def lerp_centroids(centroids, strength_min, lerp_ratio = 0.2):
             avg_centroids[i][0] = lerp(a_c[0], c[0], lerp_ratio)
             avg_centroids[i][3] = lerp(a_c[3], c[3], lerp_ratio)
         else:
-            avg_centroids[i][3] = min(lerp(a_c[3], 0, lerp_ratio/2),10)
+            # avg_centroids[i][3] = min(lerp(a_c[3], 0, lerp_ratio/2),10)
+            pass
 
         if a_c[4]<=strength_min:
             avg_centroids[i][1] = c[1]
@@ -147,24 +177,20 @@ def lerp_centroids(centroids, strength_min, lerp_ratio = 0.2):
             avg_centroids[i][1] = lerp(a_c[1], c[1], lerp_ratio)
             avg_centroids[i][4] = lerp(a_c[4], c[4], lerp_ratio)
         else:
-            avg_centroids[i][4] = min(lerp(a_c[4], 0, lerp_ratio/2),10)
+            # avg_centroids[i][4] = min(lerp(a_c[4], 0, lerp_ratio/2),10)
+            pass
 
     return avg_centroids
 
-def reset_state():
-    global avg_centroids, avg_curve_rad, avg_center_offset_m
-    avg_centroids = None
-    avg_curve_rad = None
-    avg_center_offset_m = None
 
 def find_lanes(img):
-    global avg_centroids, avg_center_offset_m, avg_curve_rad
+    global avg_centroids, avg_center_offset_m, avg_curve_rad, last_l_poly, last_r_poly
     strength_min = 1
 
     # window settings
-    window_width = 80
+    window_width = 50
     window_height = 10
-    margin = 100           # How much to slide left and right for searching
+    margin = 50           # How much to slide left and right for searching
 
     #cv2.imshow('find lanes',img*255)
     #cv2.waitKey()
@@ -176,24 +202,64 @@ def find_lanes(img):
         input_image *= 255
 
     window_size = (window_width, window_height)
-    centroids = find_window_centroids(input_image, window_size, margin, strength_min=1)
+    centroids = find_window_centroids(input_image, window_size, margin, strength_min=1, hint_centroids=avg_centroids)
     #pp = pprint.PrettyPrinter(indent=4)
     #pp.pprint(centroids)
 
-    avg_centroids = lerp_centroids(centroids, strength_min, lerp_ratio=0.4)
+    avg_centroids = lerp_centroids(centroids, strength_min, lerp_ratio=0.7)
 
-    c = np.array(avg_centroids)
+    # c = np.array(avg_centroids)
+    c = np.array(centroids)
 
-    lc = c[np.ix_(c[:,3]>strength_min, (0,2,3))]   # select l_x, l_y, l_strength, where l_strength > strength_min
-    rc = c[np.ix_(c[:,4]>strength_min, (1,2,4))]   # select r_x, r_y, r_strength, where r_strength > strength_min
+    s_min = 4
+    s_max = 29
+    lc = c[np.ix_(c[:,3]>s_min, (0,2,3))]   # select l_x, l_y, l_strength, where l_strength > strength_min
+    rc = c[np.ix_(c[:,4]>s_min, (1,2,4))]   # select r_x, r_y, r_strength, where r_strength > strength_min
+    lc = lc[np.ix_(lc[:,2]<s_max, (0,1,2))]
+    rc = rc[np.ix_(rc[:,2]<s_max, (0,1,2))]
 
     # print('-----')
     # print(lc)
     # print('-----')
     # print(rc)
 
-    l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
-    r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
+    # only fit poly if we have enough points
+    if len(lc)>17:
+        l_poly = np.polyfit(lc[:,1], lc[:,0], 2)
+    else:
+        l_poly = last_l_poly
+    if len(rc)>17:
+        r_poly = np.polyfit(rc[:,1], rc[:,0], 2)
+    else:
+        r_poly = last_r_poly
+
+    if last_l_poly is None:
+        last_l_poly = l_poly
+    if last_r_poly is None:
+        last_r_poly = r_poly
+
+    # check maximum abs(a) value of ax2*bx+c second degree poly
+    # poly_max_a = 0.001
+    poly_max_a_diff = 0.0002
+    # poly_max_b_diff = 0.05
+    # if abs(l_poly[0])>poly_max_a:
+    #     print('l_poly: poly_max_a', l_poly[0])
+    #     l_poly = last_l_poly
+    if abs(l_poly[0]-last_l_poly[0])>poly_max_a_diff:
+        print('l_poly: poly_max_a_diff{:.8f} {:.8f} {:.8f}'.format(l_poly[0], last_l_poly[0], abs(l_poly[0]-last_l_poly[0])))
+        l_poly = last_l_poly
+    else:
+        last_l_poly = l_poly
+
+    # if abs(r_poly[0])>poly_max_a:  # or abs(r_poly[1]-last_r_poly[1])>poly_max_b_diff:
+    #     print('r_poly: poly_max_a', r_poly[0])
+    #     r_poly = last_r_poly
+    if abs(r_poly[0]-last_r_poly[0])>poly_max_a_diff:
+        print('r_poly: poly_max_a_diff {:.8f} {:.8f} {:.8f}'.format(r_poly[0], last_r_poly[0], abs(r_poly[0]-last_r_poly[0])))
+        r_poly = last_r_poly
+    else:
+        last_r_poly = r_poly
+
 
     # calculate distance from center
     x_center = 1280/2
@@ -216,17 +282,18 @@ def find_lanes(img):
     xm_per_pix = 3.7/675   # meters per pixel in x dimension
     y_eval = 720
 
-    l_w_poly = np.polyfit(lc[:,1]*ym_per_pix, lc[:,0]*xm_per_pix, 2)
-    r_w_poly = np.polyfit(rc[:,1]*ym_per_pix, rc[:,0]*xm_per_pix, 2)
-    l_rad = ((1 + (2*l_w_poly[0]*y_eval*ym_per_pix + l_w_poly[1])**2)**1.5) / np.absolute(2*l_w_poly[0])
-    r_rad = ((1 + (2*r_w_poly[0]*y_eval*ym_per_pix + r_w_poly[1])**2)**1.5) / np.absolute(2*r_w_poly[0])
+    if len(lc)>2 and len(rc)>2:
+        l_w_poly = np.polyfit(lc[:,1]*ym_per_pix, lc[:,0]*xm_per_pix, 2)
+        r_w_poly = np.polyfit(rc[:,1]*ym_per_pix, rc[:,0]*xm_per_pix, 2)
+        l_rad = ((1 + (2*l_w_poly[0]*y_eval*ym_per_pix + l_w_poly[1])**2)**1.5) / np.absolute(2*l_w_poly[0])
+        r_rad = ((1 + (2*r_w_poly[0]*y_eval*ym_per_pix + r_w_poly[1])**2)**1.5) / np.absolute(2*r_w_poly[0])
 
-    curve_rad = (l_rad+r_rad) / 2
+        curve_rad = (l_rad+r_rad) / 2
 
-    if avg_curve_rad is None:
-        avg_curve_rad = curve_rad
-    else:
-        avg_curve_rad = lerp(avg_curve_rad, curve_rad, 0.2)
+        if avg_curve_rad is None:
+            avg_curve_rad = curve_rad
+        else:
+            avg_curve_rad = lerp(avg_curve_rad, curve_rad, 0.2)
 
     #print(l_rad, r_rad)
 
@@ -235,14 +302,14 @@ def find_lanes(img):
 
     img3 = np.dstack((input_image, input_image, input_image))
 
-    img_centroids = draw_centroids(img3, avg_centroids, window_size, l_poly, r_poly)
+    img_centroids = draw_centroids(img3, centroids, window_size, l_poly, r_poly, strength_min)
 
-    img_overlay =draw_overlay(img3, avg_centroids, window_size, l_poly, r_poly)
+    img_overlay = draw_overlay(img3, centroids, window_size, l_poly, r_poly)
 
     return (img_centroids, img_overlay, l_poly, r_poly, avg_curve_rad, avg_center_offset_m)
 
 if __name__=='__main__':
-    img = cv2.imread('{}/test5.jpg'.format(constants.persp_trans_test_folder))
+    img = cv2.imread('{}/c0001.png'.format(constants.persp_trans_test_folder))
     img_centroids, img_overlay, l_poly, r_poly, curve_rad, center_offset = find_lanes(img)
-    cv2.imshow('centroids', img_overlay)
+    cv2.imshow('centroids', img_centroids)
     cv2.waitKey(3000)

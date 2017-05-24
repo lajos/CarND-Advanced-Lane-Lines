@@ -44,6 +44,8 @@ def thresh_image(img, use_rgb=None, rgb_thresh=None, use_hls=None, hls_thresh=No
     if (use_luv is not None) and (True in use_luv):
         luv = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
         l,u,v = cv2.split(luv)
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(16,16))
+        l = clahe.apply(l)
         output = thresh_channels(output, (l,u,v), use_luv, luv_thresh)
 
     if (use_sobel_hls is not None) and (True in use_sobel_hls):

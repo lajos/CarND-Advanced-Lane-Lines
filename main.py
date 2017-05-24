@@ -52,6 +52,9 @@ poly_log = []
 def process_image(img):
     global current_video_frame
     global poly_log
+    # if current_video_frame > 136:
+    #     utils.write_csv('poly_log.csv', poly_log)
+    #     sys.exit(0)
     bgr = img[:,:,[2,1,0]]
     undistorted = camcalib.undistort_image(bgr, _['cal_mtx'], _['cal_dist'])
     threshed = thresh.thresh_image(undistorted,
@@ -105,12 +108,13 @@ def main():
     #print(_)
 
     force = False
+    force = True
     calibrate_camera(force=force)
     adjust_thresh(force=force)
     adjust_perspective(force=force)
 
     #process_video(constants.video_project_part, '{}/{}'.format(constants.output_folder, constants.video_project_part))
-    process_video(constants.video_project, '{}/{}'.format(constants.output_folder, constants.video_project))
+    # process_video(constants.video_project, '{}/{}'.format(constants.output_folder, constants.video_project))
 
     #process_video(constants.video_challenge, '{}/{}'.format(constants.output_folder, constants.video_challenge))
     #process_video(constants.video_challenge_harder, '{}/{}'.format(constants.output_folder, constants.video_challenge_harder))

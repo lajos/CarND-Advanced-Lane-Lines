@@ -95,8 +95,17 @@ def print_progress_bar (iteration, total, prefix = 'progress:', suffix = ' ', de
     if iteration == total:
         print()
 
+def read_csv(csv_name):
+    data = []
+    with open(csv_name, newline='') as csvfile:
+        csv_reader = csv.reader(csvfile, delimiter=',')
+        for row in csv_reader:
+            data.append(row)
+    return data
+
+
 def write_csv(csv_name, data):
-    with open(csv_name, 'w') as csvfile:
+    with open(csv_name, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         for d in data:
             csv_writer.writerow(d)
