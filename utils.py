@@ -109,3 +109,6 @@ def write_csv(csv_name, data):
         csv_writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         for d in data:
             csv_writer.writerow(d)
+
+def lerp(a, b, ratio):
+    return a*(1.0-ratio) + b * ratio

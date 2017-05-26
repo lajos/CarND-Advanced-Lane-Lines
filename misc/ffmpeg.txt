@@ -1,0 +1,11 @@
+ # rotate video 180, rescale to 720p, remove audio
+
+ ffmpeg -i 04.mp4 -vf "transpose=2,transpose=2" -vf scale=-1:720 -crf 18 -preset veryslow -an -movflags faststart 04_.mp4
+
+# extract 51 seconds starting 06:32
+
+ ffmpeg -i 04_.mp4 -ss 00:06:32 -t 00:00:50 -crf 18 -preset veryslow -movflags faststart  -an 04_01.mp4
+
+ #extract images
+
+ ffmpeg -i inputFile.mp4 %04d.png

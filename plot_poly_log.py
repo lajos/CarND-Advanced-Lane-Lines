@@ -17,7 +17,7 @@ pyplot.plot(np.subtract(poly_log[:,0], np.roll(poly_log[:,0],1)))
 #pyplot.plot(np.subtract(poly_log[:,1], np.roll(poly_log[:,1],1)))
 #pyplot.plot(np.subtract(poly_log[:,2], np.roll(poly_log[:,2],1)))
 
-#pyplot.plot(np.subtract(poly_log[:,3], np.roll(poly_log[:,3],1)))
+pyplot.plot(np.subtract(poly_log[:,3], np.roll(poly_log[:,3],1)))
 # pyplot.plot(np.subtract(poly_log[:,4], np.roll(poly_log[:,4],1)))
 # pyplot.plot(np.subtract(poly_log[:,5], np.roll(poly_log[:,5],1)))
 
