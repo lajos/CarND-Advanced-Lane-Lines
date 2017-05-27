@@ -9,6 +9,9 @@ def calibrate_images(image_files, nx=9, ny=6):
     returns (mtx,dist)
     """
 
+    # termination criteria
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
     # create object points (0,0,0), (1,0,0), (2,0,0), ... (nx, ny, 0)
     objp = np.zeros((nx*ny,3), np.float32)
     objp[:,:2] = np.mgrid[0:nx, 0:ny].T.reshape(-1,2)
@@ -27,7 +30,10 @@ def calibrate_images(image_files, nx=9, ny=6):
 
         if ret == True:
             obj_points.append(objp)
-            img_points.append(corners)
+
+            corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
+
+            img_points.append(corners2)
             cv2.drawChessboardCorners(img, (nx,ny), corners, ret)
             # cv2.imshow('img', img)
             # cv2.waitKey(500)

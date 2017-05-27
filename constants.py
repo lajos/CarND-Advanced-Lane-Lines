@@ -19,3 +19,4 @@ video_challenge_harder = 'harder_challenge_video.mp4'
 video_rain = 'rain.mp4'
 poly_log_name = 'poly_log.csv'
 lane_width_m = 3.7
+debug_log = False

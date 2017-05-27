@@ -2,18 +2,19 @@ import numpy as np
 import cv2, sys
 import constants, utils
 from scipy import ndimage
+import matplotlib.pyplot as pyplot
 
-avg_centroids = None
-last_l_poly = None
-last_r_poly = None
-last_l_weights = None
-last_r_weights = None
-last_l_centroids = None
-last_r_centroids = None
+acc_centroids = None            # centroid accumulator
+last_l_poly = None              # last valid left poly
+last_r_poly = None              # last valid right poly
+last_l_weights = None           # polyfit weights for last valid left poly
+last_r_weights = None           # polyfit weights for last valid right poly
+last_l_centroids = None         # last valid left centroids
+last_r_centroids = None         # last valid right centroids
 
 def reset_state():
-    global avg_centroids, last_l_poly, last_r_poly
-    avg_centroids = None
+    global acc_centroids, last_l_poly, last_r_poly
+    acc_centroids = None
     last_l_poly = None
     last_r_poly = None
     last_l_weights = None
@@ -22,8 +23,8 @@ def reset_state():
     last_r_centroids = None
 
 def draw_centroids(img, centroids, window_size, l_poly, r_poly, strength_min, s_min, s_max):
+    """draw debugging information onto warped threshold image"""
     img = img.copy()
-    # print(img.shape)
     w2 = int(window_size[0]/2)
     h = window_size[1]
     h2 = int(h/2)
@@ -90,8 +91,13 @@ def draw_overlay(img, centroids, window_size, l_poly, r_poly):
 
 
 def find_window_centroids(img, window_size , margin, strength_min=0, hint_centroids=None):
-    """[strength_min] ignore windows found with little data
-    centroids are array of (left_center_x, right_center_x, pos_y, l_strength, r_strength)
+    """find centroids using convolution method
+    [img] binary thresholded image
+    [window_size] size of convolution window
+    [margin] how far left/righ to look for new centroid location
+    [strength_min] minimum strength for valid centroid
+    [hint_centroids] centroids from last search to help find current centroid positions
+    returns: centroids, array of (left_center_x, right_center_x, pos_y, l_strength, r_strength)
     """
     window_w, window_h = window_size
     img_w=img.shape[1]
@@ -108,24 +114,33 @@ def find_window_centroids(img, window_size , margin, strength_min=0, hint_centro
     # first find the two starting positions for the left and right lane by using np.sum to get the vertical image slice
     # and then np.convolve the vertical image slice with the window template
 
-    if (hint_centroids):
-        l_center_hint = hint_centroids[0][0]
-        r_center_hint = hint_centroids[0][1]
-    else:
-        # sum quarter bottom of image to get slice, could use a different ratio, use as hint for where to start searching
-        l_sum = np.sum(img[int(img_h*0.75):, :img_w2], axis=0)
-        l_center_hint = np.argmax(np.convolve(window, l_sum)) - window_w2
-        r_sum = np.sum(img[int(img_h*.75):, img_w2:], axis=0)
-        r_center_hint = np.argmax(np.convolve(window,r_sum)) - window_w2 + img_w2
+    # sum quarter bottom of image to get slice, could use a different ratio, use as hint for where to start searching
+    l_sum = np.sum(img[int(img_h*0.75):, :img_w2], axis=0)
+    l_center_hint = np.argmax(np.convolve(window, l_sum)) - window_w2
+    r_sum = np.sum(img[int(img_h*.75):, img_w2:], axis=0)
+    r_center_hint = np.argmax(np.convolve(window,r_sum)) - window_w2 + img_w2
 
     # go through each layer looking for max pixel locations
     for level in range(0, int(img_h/window_h)):
         # convolve the window into the vertical slice of the image
         image_layer = np.sum(img[int(img_h-(level+1)*window_h):int(img_h-level*window_h),:], axis=0)
-        # print(np.argmax(image_layer))
-        conv_signal = np.convolve(window, image_layer)
 
-        conv_signal = ndimage.filters.gaussian_filter1d(conv_signal, 17, mode='constant')
+        conv_signal_raw = np.convolve(window, image_layer)
+
+        # smooth convolution signal
+        conv_signal = ndimage.filters.gaussian_filter1d(conv_signal_raw, 17, mode='constant')
+
+        # visualize conv signal
+        # pyplot.figure(figsize=(20,5))
+        # pyplot.plot(image_layer)
+        # pyplot.show()
+        # pyplot.figure(figsize=(20,5))
+        # pyplot.plot(conv_signal_raw)
+        # pyplot.show()
+        # pyplot.figure(figsize=(20,5))
+        # pyplot.plot(conv_signal)
+        # pyplot.show()
+        # sys.exit(0)
 
         # find the best left centroid by using past left center as a reference
         # use window_w/2 as offset because convolution signal reference is at right side of window, not center of window
@@ -141,7 +156,7 @@ def find_window_centroids(img, window_size , margin, strength_min=0, hint_centro
         r_strength = np.sum(conv_signal[r_min_index:r_max_index]) / (r_max_index - r_min_index) / img_max / window_h / window_w
         r_center = np.argmax(conv_signal[r_min_index:r_max_index]) + r_min_index - window_w2
 
-        # add what we found for that layer
+        # add centroid we found for this layer layer
         window_centroids.append([l_center, r_center, img_h-level*window_h, l_strength, r_strength])
 
         # update hint only if we found enough data
@@ -159,36 +174,37 @@ def find_window_centroids(img, window_size , margin, strength_min=0, hint_centro
 
 
 def lerp_centroids(centroids, strength_min, lerp_ratio = 0.2):
-    global avg_centroids
-    if avg_centroids is None:
-        avg_centroids = centroids.copy()
-        return avg_centroids
+    """accumulate centroid (useful hint for finding new centroids)"""
+    global acc_centroids
+    if acc_centroids is None:
+        acc_centroids = centroids.copy()
+        return acc_centroids
 
     for i in range(len(centroids)):
         c = centroids[i]
-        a_c = avg_centroids[i]
+        a_c = acc_centroids[i]
 
         if a_c[3]<=strength_min:
-            avg_centroids[i][0] = c[0]
-            avg_centroids[i][3] = c[3]
+            acc_centroids[i][0] = c[0]
+            acc_centroids[i][3] = c[3]
         elif c[3]>strength_min:
-            avg_centroids[i][0] = utils.lerp(a_c[0], c[0], lerp_ratio)
-            avg_centroids[i][3] = utils.lerp(a_c[3], c[3], lerp_ratio)
+            acc_centroids[i][0] = utils.lerp(a_c[0], c[0], lerp_ratio)
+            acc_centroids[i][3] = utils.lerp(a_c[3], c[3], lerp_ratio)
         else:
-            # avg_centroids[i][3] = min(utils.lerp(a_c[3], 0, lerp_ratio/2),10)
+            # acc_centroids[i][3] = min(utils.lerp(a_c[3], 0, lerp_ratio/2),10)
             pass
 
         if a_c[4]<=strength_min:
-            avg_centroids[i][1] = c[1]
-            avg_centroids[i][4] = c[4]
+            acc_centroids[i][1] = c[1]
+            acc_centroids[i][4] = c[4]
         elif c[4]>strength_min:
-            avg_centroids[i][1] = utils.lerp(a_c[1], c[1], lerp_ratio)
-            avg_centroids[i][4] = utils.lerp(a_c[4], c[4], lerp_ratio)
+            acc_centroids[i][1] = utils.lerp(a_c[1], c[1], lerp_ratio)
+            acc_centroids[i][4] = utils.lerp(a_c[4], c[4], lerp_ratio)
         else:
-            # avg_centroids[i][4] = min(utils.lerp(a_c[4], 0, lerp_ratio/2),10)
+            # acc_centroids[i][4] = min(utils.lerp(a_c[4], 0, lerp_ratio/2),10)
             pass
 
-    return avg_centroids
+    return acc_centroids
 
 
 def poly_fit_random_weight(c, last_poly, min_points):
@@ -254,6 +270,10 @@ def poly_fit_random_weight(c, last_poly, min_points):
 
     return best_poly, best_weights
 
+def debug_log(msg):
+    if constants.debug_log:
+        print(msg)
+
 def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap=0.6, ym_per_pix = 30/720, xm_per_pix = 3.7/675):
     """
     find lanes in [img]
@@ -264,11 +284,11 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
     [ym_per_pix]: meters per pixel in y dimension
     [xm_per_pix]: meters per pixel in x dimension
     """
-    global avg_centroids, last_l_poly, last_r_poly, last_l_weights, last_r_weights
+    global acc_centroids, last_l_poly, last_r_poly, last_l_weights, last_r_weights
     global last_l_centroids, last_r_centroids
 
     # minimum strength of centroid to find
-    strength_min = 0.005
+    strength_min = 0.01
 
     # concolution window settings
     window_width = 50
@@ -277,20 +297,18 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
 
     input_image = img
     if len(img.shape)==3:
-        input_image = img[:,:,0]
+        input_image = np.zeros_like(img[:,:,0])
+        input_image[img[:,:,0]>128]=255
     if np.max(input_image)==1:
         input_image *= 255
 
-    # cv2.imshow('find_lanes', input_image)
-    # cv2.waitKey()
-
     window_size = (window_width, window_height)
-    centroids = find_window_centroids(input_image, window_size, margin, strength_min=strength_min, hint_centroids=avg_centroids)
+    centroids = find_window_centroids(input_image, window_size, margin, strength_min=strength_min, hint_centroids=acc_centroids)
 
-    if avg_centroids is None:
-        avg_centroids = centroids
+    if acc_centroids is None:
+        acc_centroids = centroids
     else:
-        avg_centroids = lerp_centroids(centroids, strength_min, lerp_ratio=0.7)
+        acc_centroids = lerp_centroids(centroids, strength_min, lerp_ratio=0.7)
 
     c = np.array(centroids)
 
@@ -311,10 +329,9 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
     if len(rc)>2:
         rc_max_y_gap = np.max(np.abs((rc[:,1] - np.roll(rc[:,1],1))[1:]))
 
-    # minimum number of points required to fit poly
-    min_points = 9                                         # was 17
-    min_y_range = constants.image_height * 0.6              # was 0.6
-    max_y_gap = constants.image_height * 0.7                # was 0.6
+    # calculate minimum length of centroid data and maximum gap in y pixels
+    min_y_range = constants.image_height * min_range
+    max_y_gap = constants.image_height * max_gap
 
     # fit left poly if we have enough left points
     if len(lc)>min_points and lc_y_range>min_y_range and lc_max_y_gap<max_y_gap:
@@ -350,31 +367,33 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
         last_r_centroids = rc
 
 
-    # check maximum abs(a) value of ax2*bx+c second degree poly
-    poly_max_a_diff = 0.00025
+    # check maximum abs(a) difference of ax2*bx+c second degree poly
+    poly_max_a_diff = 0.00025   # 0.00025
     if abs(l_poly[0]-last_l_poly[0])>poly_max_a_diff:
-        # print('l_poly: poly_max_a_diff{:.8f} {:.8f} {:.8f}'.format(l_poly[0], last_l_poly[0], abs(l_poly[0]-last_l_poly[0])))
+        debug_log('l_poly: poly_max_a_diff{:.8f} {:.8f} {:.8f}'.format(l_poly[0], last_l_poly[0], abs(l_poly[0]-last_l_poly[0])))
         l_poly = last_l_poly
         l_weights = last_l_weights
         lc = last_l_centroids
 
     if abs(r_poly[0]-last_r_poly[0])>poly_max_a_diff:
-        # print('r_poly: poly_max_a_diff {:.8f} {:.8f} {:.8f}'.format(r_poly[0], last_r_poly[0], abs(r_poly[0]-last_r_poly[0])))
+        debug_log('r_poly: poly_max_a_diff {:.8f} {:.8f} {:.8f}'.format(r_poly[0], last_r_poly[0], abs(r_poly[0]-last_r_poly[0])))
         r_poly = last_r_poly
         r_weights = last_r_weights
         rc = last_r_centroids
 
+    # prevent poly curves from flipping independent from other side
+    poly_flip_max_a_diff = 0.00028
     s_l_a = np.sign(l_poly[0])
     s_r_a = np.sign(r_poly[0])
     s_l_l_a = np.sign(last_l_poly[0])
     s_l_r_a = np.sign(last_r_poly[0])
-    if not s_l_a==s_r_a and s_r_a==s_l_l_a:
-        # print('left sign fix')
+    if not s_l_a==s_r_a and s_r_a==s_l_l_a and abs(l_poly[0]-last_l_poly[0])>poly_flip_max_a_diff:
+        debug_log('left sign fix a:{:.6f}'.format(abs(l_poly[0]-last_l_poly[0])))
         l_poly = last_l_poly
         l_weights = last_l_weights
         lc = last_l_centroids
-    if not s_r_a==s_l_a and s_l_a==s_l_r_a:
-        # print('right sign fix')
+    if not s_r_a==s_l_a and s_l_a==s_l_r_a and abs(r_poly[0]-last_r_poly[0])>poly_flip_max_a_diff:
+        debug_log('right sign fix a:{:.6f}'.format(abs(r_poly[0]-last_r_poly[0])))
         r_poly = last_r_poly
         r_weights = last_r_weights
         rc = last_r_centroids
@@ -399,7 +418,6 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
 
     # define conversions in x and y from pixels space to meters
     y_eval = constants.image_height     # evaluate at bottom of image
-
     if len(lc)>2 and len(rc)>2:
         l_w_poly = np.polyfit(lc[:,1]*ym_per_pix, lc[:,0]*xm_per_pix, 2, w=l_weights)
         r_w_poly = np.polyfit(rc[:,1]*ym_per_pix, rc[:,0]*xm_per_pix, 2, w=r_weights)
@@ -418,8 +436,14 @@ def find_lanes(img, s_min=0.08, s_max=0.9, min_points=17, min_range=0.6, max_gap
     return (img_centroids, img_overlay, l_poly, r_poly, curve_rad, center_offset_m)
 
 if __name__=='__main__':
-    img = cv2.imread('{}/r1_0001.png'.format(constants.persp_trans_test_folder))
+    img = cv2.imread('{}/test3.jpg'.format(constants.persp_trans_test_folder))
     img_centroids, img_overlay, l_poly, r_poly, curve_rad, center_offset = find_lanes(img)
+
+    # import persptrans
+    # _ = utils.load_globals()
+    # unwarped_overlay = persptrans.warp_image(img_overlay, _['persp_dst_pts'], _['persp_src_pts'])
+    # cv2.imwrite('test.png', img_overlay)
+
     cv2.imshow('centroids', img_centroids)
     # cv2.waitKey(3000)
     cv2.waitKey()

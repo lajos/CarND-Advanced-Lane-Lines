@@ -135,18 +135,24 @@ def main():
     global _
     _ = utils.load_globals()
 
-    force = False
-    # force = True
-    # calibrate_camera(constants.camera_cal_folder, constants.test_images_folder, force=force)
-    calibrate_camera(constants.camera_cal_nx6_folder, constants.test_images_nx6_folder, force=force)
+    force = True
+    calibrate_camera(constants.camera_cal_folder, constants.test_images_folder, force=force)
+    # calibrate_camera(constants.camera_cal_nx6_folder, constants.test_images_nx6_folder, force=force)
     adjust_thresh(force=force)
     adjust_perspective(force=force)
 
     utils.save_globals(_)
 
-    # sys.exit(0)
+    constants.debug_log=False
 
     # project video
+    _['find_lanes_s_min'] = 0.05
+    _['find_lanes_s_max'] = 0.5
+    _['find_lanes_min_points'] = 17
+    _['find_lanes_min_range'] = 0.6
+    _['find_lanes_max_gap'] = 0.6
+    _['find_lanes_ym_per_pix'] = 30/720
+    _['find_lanes_xm_per_pix'] = 3.7/675
 
     # challenge video
     # _['find_lanes_s_min'] = 0.08
@@ -158,18 +164,18 @@ def main():
     # _['find_lanes_xm_per_pix'] = 3.7/675
 
     # rain video
-    _['find_lanes_s_min'] = 0.035
-    _['find_lanes_s_max'] = 0.31
-    _['find_lanes_min_points'] = 9
-    _['find_lanes_min_range'] = 0.6
-    _['find_lanes_max_gap'] = 0.7
-    _['find_lanes_ym_per_pix'] = 25/720
-    _['find_lanes_xm_per_pix'] = 3.7/610
+    # _['find_lanes_s_min'] = 0.035
+    # _['find_lanes_s_max'] = 0.31
+    # _['find_lanes_min_points'] = 9
+    # _['find_lanes_min_range'] = 0.6
+    # _['find_lanes_max_gap'] = 0.7
+    # _['find_lanes_ym_per_pix'] = 25/720
+    # _['find_lanes_xm_per_pix'] = 3.7/610
 
 
-    # process_video(constants.video_project, '{}/{}'.format(constants.output_folder, constants.video_project))
+    process_video(constants.video_project, '{}/{}'.format(constants.output_folder, constants.video_project))
     # process_video(constants.video_challenge, '{}/{}'.format(constants.output_folder, constants.video_challenge))
-    process_video(constants.video_rain, '{}/{}'.format(constants.output_folder, constants.video_rain))
+    # process_video(constants.video_rain, '{}/{}'.format(constants.output_folder, constants.video_rain))
 
     utils.save_globals(_)
 
