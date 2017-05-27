@@ -17,6 +17,12 @@ The goals / steps of this project are the following:
 
 ---
 
+## Github Repo
+
+The github repo of my project is [here](https://github.com/lajos/CarND-Advanced-Lane-Lines).
+
+---
+
 ## Camera Calibration
 
 Camera lenses introduce distortions into images. Due to distortion straight lines appear curved.
@@ -312,6 +318,8 @@ Centroids and polys for the rain video.
 * **videos/project_diag.mp4** - project video centroids and polys
 * **videos/challenge_diag.mp4** - challenge video centroids and polys
 * **videos/rain_diag.mp4** - rain video centroids and polys
+
+The camera undistorted calibration images for my phone's camera are available in my [github repo](https://github.com/lajos/CarND-Advanced-Lane-Lines/tree/master/output_images/calibration) for the project.
 
 ---
 
