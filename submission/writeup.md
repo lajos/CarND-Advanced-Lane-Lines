@@ -319,7 +319,7 @@ Centroids and polys for the rain video.
 * **videos/challenge_diag.mp4** - challenge video centroids and polys
 * **videos/rain_diag.mp4** - rain video centroids and polys
 
-The camera undistorted calibration images for my phone's camera are available in my [github repo](https://github.com/lajos/CarND-Advanced-Lane-Lines/tree/master/output_images/calibration) for the project.
+The undistorted camera calibration images for my phone's camera (used in the rain video) are available in my [github repo](https://github.com/lajos/CarND-Advanced-Lane-Lines/tree/master/output_images/calibration) for the project.
 
 ---
 
